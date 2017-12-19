@@ -1,0 +1,185 @@
+MULTI NODE HADOOP CLUSTER SETUP ON CENT OS
+------------------------------------------------------------
+Before going to start the multimode hadoop cluster setup on Cent OS, a fully working ‘single node hadoop cluster setup on Cent OS’ has to be completed on all the nodes.
+STEP 1: Open Machine1 using VMWare player
+Open the machine1 using the VMWare player and ensure that the network settings are in NAT mode
+STEP 2: Open Machine2 using VMWare player
+Open the machine2 using the VMWare player and ensure that the network settings are in NAT mode
+STEP 3: Test Ping is working from one machine to another
+Open terminal in machine1 with ‘hduser’ if not already opened and gives ping command to the second machine and ensure that you got ping response without any packet loss as shown below
+NOTE: Similarly, open a terminal in machine2 and test the connectivity from machine2 to machine1 using ping.
+NOTE 2 : We will call the machine1as the “master” from now onwards and machine2 as slave. The master may act as slave too to share some load and the slave-only machine will be a pure slave. We will change hostnames of these machines in their networking setup, most notably in /etc/sysconfig/network .
+STEP 4: Change your machine names
+a) To change hostname on master, in the opened terminal your master,
+Type
+cd /etc/sysconfig/
+nano network
+change the HOSTNAME to your preferred ‘master’ and save the file (press ctr+X and press ‘y’ and enter). Looks like the below:
+[hduser@master /]$ cat /etc/sysconfig/network
+NETWORKING=yes
+NETWORKING_IPV6=no
+HOSTNAME=master
+[hduser@master /]$
+To Confirm the hostname change , type ‘hostname’ on console
+[hduser@master ~]$ hostname
+master
+[hduser@master ~]$
+b) To change hostname on slave, in the opened terminal of the slave machine,
+Type
+cd /etc/sysconfig/
+nano network
+change the HOSTNAME to your preferred ‘slave’ and save the file (press ctr+X and press ‘y’ and enter). Looks like the below:
+[hduser@slave ~]$ cat /etc/sysconfig/network
+NETWORKING=yes
+NETWORKING_IPV6=no
+HOSTNAME=slave
+[hduser@slave ~]$
+Confirm the hostname change by typing hostname on console. You may have to restart network or may have to reboot the system to get the hostname change effected.
+[hduser@slave ~]$ hostname
+slave
+[hduser@slave ~]$
+STEP 5: Update the hosts on both the nodes
+On each machine, we should be able identify other machine using it’s hostname instead of IP address. To do that we need to enter the hostnames along with IP address in /etc/hosts file. Do the following steps.
+a) To change hosts entry on master
+[hduser@master /]$ sudo nano /etc/hosts
+[sudo] password for hduser:
+[hduser@master /]$
+[hduser@master /]$ cat /etc/hosts
+127.0.0.1 localhost.localdomain localhost
+192.168.131.139 master
+192.168.131.140 slave
+::1 localhost6.localdomain6 localhost6
+[hduser@master /]$
+NOTE: We will get the IP Address of a node, by typing ‘ifconfig’ command on each node
+b) To change hosts entry on slave
+[hduser@slave ~]$ sudo nano /etc/hosts
+[sudo] password for hduser:
+[hduser@slave ~]$
+[hduser@slave ~]$
+[hduser@slave ~]$ cat /etc/hosts
+127.0.0.1 localhost.localdomain localhost
+192.168.131.139 master
+192.168.131.140 slave
+::1 localhost6.localdomain6 localhost6
+[hduser@slave ~]$
+NOTE: We will get the IP Address of a node, by typing ‘ifconfig’ command on each node
+STEP 6: Confirm the hostname name changes by pinging by hostnames
+a) From master node terminal give below command
+ping master
+ping slave
+You should get ping response for above commands without any packet loss. If you get any packet loss, fix the issue without proceeding further.
+b) From slave node terminal give below command
+ping master
+ping slave
+NOTE: You should get ping response for above commands without any packet loss. If you get any packet loss, fix the issue without proceeding further.
+STEP 7: Setup SSH
+The hduser user on the master (aka hduser@master) must be able to connect
+a) to its own user account on the master – i.e. SSH master in this context and not necessarily SSH localhost – and b) to the hduser user account on the slave (aka hduser@slave) via a password-less SSH login.
+If you followed my ‘Setup Single Node Hadoop Cluster on CentOS’, you just have to add the hduser@master’s public SSH key (which should be in ~/.ssh/id_rsa.pub) to the authorized_keys file of hduser@slave (in this user’s ~/.ssh/authorized_keys).
+once authorized_kyes generated you have to change the permissions using below
+COMMANDS
+-----------------------------------
+hduser@master:~$chmod 700 ~/.ssh/authorized_keys
+On both nodes start SSH service if not already started by running below command
+hduser@master:~$sudo service sshd start
+Run the below command to have the sshd running even after system reboot.
+hduser@master:~$sudo chkconfig sshd on
+hduser@slave:~$ sudo service sshd start
+Run the below command to have the sshd running even after system reboot.
+hduser@slave:~$sudo chkconfig sshd on
+Copy the public key from master to slave by running below command
+hduser@master:~$ ssh-copy-id -i $HOME/.ssh/id_rsa.pub hduser@slave
+This command will prompt you for the login password for user hduser on slave, then copy the public SSH key for you, creating the correct directory and fixing the permissions as necessary.
+STEP 8: Test the SSH connectivity
+Test the ssh connectivity by doing the following
+hduser@master:~$ ssh master
+It will ask for yes or no and you should type 'yes'
+hduser@master:~$ ssh slave
+It will ask for yes or no and you should type 'yes'
+We should be able to SSH master and SSH slave without password prompt.
+If it asks for password while connecting to master or slave using SSH, there is something went wrong and you need to fix it before proceeding further.
+Without having the password less SSH working properly, the hadoop cluster will not work, so there is no point in going further if password less SSH is not working. If you face any issues with SSH, consult Google University, there copious available.
+STEP 9: Turn off the iptables
+You need to stop the iptables(firewalls) so that one node can communicate with other.
+#Stop firewall on master hduser@master:~$ sudo service iptables stop
+Run the below command to have the iptables stopped even after system reboot.
+hduser@master:~$sudo chkconfig iptables off
+#Stop firewall on slave hduser@slave:~$ sudo service iptables stop
+Run the below command to have the iptables stopped even after system reboot.
+hduser@slave:~$sudo chkconfig iptables off
+STEP 10: Update master and slave files Of conf directory
+On master node, update the masters and slaves files On master node terminal
+Type nano /usr/local/hadoop/conf/masters
+Enter ‘master’ and save the files
+[hduser@master /]$ cat /usr/local/hadoop/conf/masters
+master
+[hduser@master /]$
+Type nano /usr/local/hadoop/conf/slaves
+Enter ‘master’ and ‘slave’, one in each line.
+[hduser@master /]$ cat /usr/local/hadoop/conf/slaves
+master
+slave
+[hduser@master /]$
+STEP 11: Update core-site.xml file
+#Do the following on master node
+Open the core-site.xml file using below command and change the value for fs.default.name from localhost to master
+hduser@master:~$vi /usr/local/hadoop/conf/core-site.xml
+<property>
+<name>hadoop.tmp.dir</name>
+<value>/app/hadoop/tmp</value>
+<description>A base for other temporary directories.</description> </property>
+<property>
+<name>fs.default.name</name> <value>hdfs://MASTER:54310</value>
+<description>The name of the default file system. A URI whose scheme and authority determine the FileSystem implementation. The uri's scheme determines the config property (fs.SCHEME.impl) naming theFileSystem implementation class. The uri's authority is used to determine the host, port, etc. for a filesystem.
+</description>
+</property>
+#Do the following on slave node
+Open the core-site.xml file using below command and change the value for fs.default.name from localhost to master
+hduser@slave:~$vi /usr/local/hadoop/conf/core-site.xml
+<property>
+<name>hadoop.tmp.dir</name>
+<value>/app/hadoop/tmp</value>
+<description>A base for other temporary directories.</description> </property>
+<property>
+<name>fs.default.name</name> <value>hdfs://MASTER:54310</value>
+<description>The name of the default file system. A URI whose scheme and authority determine the FileSystem implementation. The uri's scheme determines the config property (fs.SCHEME.impl) naming theFileSystem implementation class. The uri's authority is used to determine the host, port, etc. for a filesystem.
+</description>
+</property>
+STEP 12: Update mapred-site.xml file
+#Do the following on master node
+Open the mapred-site.xml file using below command and change the value for mapred.job.tracker from localhost to master
+hduser@master:~$vi /usr/local/hadoop/conf/mapred-site.xml
+<property>
+<name>mapred.job.tracker</name> <value>MASTER:54311</value>
+<description>The host and port that the MapReduce job tracker runs at. If "local", then jobs are run in-process as a single map
+and reduce task. </description>
+</property>
+#Do the following on slave node
+Open the mapred-site.xml file using below command and change the value for mapred.job.tracker from localhost to master
+hduser@master:~$vi /usr/local/hadoop/conf/mapred-site.xml
+<property>
+<name>mapred.job.tracker</name> <value>MASTER:54311</value>
+<description>The host and port that the MapReduce job tracker runs at. If "local", then jobs are run in-process as a single map
+and reduce task. </description>
+</property>
+STEP 13: Format the cluster
+On master node, you need to format the HDFS. Run the below command to do the HDFS format.
+hduser@master:~$hadoop namenode –format.
+The above command should format the HDFS on both master and slave. If the format files, you can remove the ‘dfs’ and ‘mapred’ folders in /app/hadoop/tmp on both the nodes manually and then try to format again
+STEP 14: Start the cluster
+On master node, run the below command hduser@master:~$start-all.sh
+[hduser@master /]$ jps
+3458 JobTracker
+3128 NameNode
+3254 DataNode
+5876 Jps
+3595 TaskTracker
+3377 SecondaryNameNode
+[hduser@master /]$
+On slave when you type ‘jps’ typical output should be hduser@slave:~$ jps
+[hduser@slave ~]$ jps
+5162 Jps
+2746 TaskTracker
+2654 DataNode
+[hduser@slave ~]$
+NOTE: If the given demons are not running on respective nodes, you need to check log files for possible errors. The default log files location is /usr/local/hadoop/logs
